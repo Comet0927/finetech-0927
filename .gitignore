@@ -1,0 +1,7 @@
+# Clasp 관련 민감 정보
+**/.clasp.json
+
+# 기타 무시할 항목 (선택)
+node_modules/
+.DS_Store
+*.secrets.json

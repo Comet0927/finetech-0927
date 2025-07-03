@@ -1,0 +1,13 @@
+{
+  "timeZone": "Asia/Seoul",
+  "dependencies": {
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "sheets": {
+    "macros": [{
+      "menuName": "onOpen",
+      "functionName": "onOpen"
+    }]
+  }
+}

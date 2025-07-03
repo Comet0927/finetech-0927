@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+  <head><base target="_top"></head>
+  <body>
+    <h3>출력 인원 시트 선택</h3>
+    <label for="outputSheet">"1.인원 계산기" 시트를 넣어주세요</label><br>
+    <select id="outputSheet"></select>
+
+    <h3>복사할 원본 시트 선택</h3>
+    <label for="dataSheet">최근날짜의 출력인원 시트를 넣어주세요</label><br>
+    <select id="dataSheet"></select>
+
+    <h3>날짜 선택</h3>
+    <label for="copyDate">생성 시트의 날짜를 선택해주세요</label><br>
+    <input type="date" id="copyDate">
+    <br><br>
+
+    <button onclick="confirmAndCopy()">선택 완료</button>
+
+    <script>
+      // 오늘 날짜 기본값 세팅 (yyyy-mm-dd)
+      const local = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+      const today = local.toISOString().slice(0,10);
+      document.getElementById("copyDate").value = today;
+
+      function loadSheets() {
+        google.script.run.withSuccessHandler(function(names) {
+          const outSel = document.getElementById("outputSheet");
+          const dataSel = document.getElementById("dataSheet");
+
+          let first1Dot = "";
+          let recentOutput = "";
+          let latestDate = 0;
+
+          names.forEach(name => {
+            // ① 출력 시트 (첫번째 드롭다운)
+            const opt1 = document.createElement("option");
+            opt1.text = opt1.value = name;
+            if (!first1Dot && name.includes("1.")) {
+              first1Dot = name;
+              opt1.selected = true;
+            }
+            outSel.appendChild(opt1);
+
+            // ② 복사 시트 (두번째 드롭다운)
+            const opt2 = document.createElement("option");
+            opt2.text = opt2.value = name;
+            dataSel.appendChild(opt2);
+
+            // "(출력)YYYYMMDD" 형식 판별
+            const m = name.match(/^\(출력\)(\d{8})$/);
+            if (m) {
+              const num = parseInt(m[1], 10);
+              if (num > latestDate) {
+                latestDate = num;
+                recentOutput = name;
+              }
+            }
+          });
+
+          // 두번째 드롭다운 기본값 설정
+          if (recentOutput) {
+            dataSel.value = recentOutput;
+          }
+        }).getSheetNames();
+      }
+
+      function confirmAndCopy() {
+        const output   = document.getElementById("outputSheet").value;
+        const data     = document.getElementById("dataSheet").value;
+        const dateVal  = document.getElementById("copyDate").value;
+
+        if (!output || !data || !dateVal) {
+          alert("출력 시트, 복사 시트, 날짜를 모두 선택해주세요.");
+          return;
+        }
+
+        const formattedDate = dateVal.replace(/-/g, "");
+        if (confirm(
+          `선택한 시트로 작업을 진행할까요?\n\n` +
+          `출력 시트: ${output}\n` +
+          `복사 시트: ${data}\n` +
+          `날짜: ${formattedDate}`
+        )) {
+          google.script.run.withSuccessHandler(function(result) {
+            alert(result.message);
+            google.script.host.close();
+          }).copySheetWithDualSources(output, data, formattedDate);
+        }
+      }
+
+      loadSheets();
+    </script>
+  </body>
+</html>

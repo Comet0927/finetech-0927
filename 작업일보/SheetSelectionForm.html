@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body { font-family: sans-serif; padding: 10px; }
+    label, select, input, button { margin: 6px 0; display: block; width: 100%; }
+  </style>
+</head>
+<body>
+  <label for="sourceSheet">① 데이터 취합 시트:</label>
+  <select id="sourceSheet"></select>
+
+  <label for="templateSheet">② 복사할 시트 (양식 템플릿):</label>
+  <select id="templateSheet"></select>
+
+  <label for="workDate">③ 출력 날짜 선택:</label>
+  <input type="date" id="workDate">
+
+  <button id="confirmBtn">확인</button>
+
+  <script>
+    // 1) DOM 준비 후 초기화
+    document.addEventListener('DOMContentLoaded', function() {
+      // 오늘 날짜 자동 세팅
+      const workDate = document.getElementById('workDate');
+      const local = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+      workDate.value = local.toISOString().slice(0,10);
+
+      // 서버에서 시트 목록 받아오기
+      google.script.run
+        .withSuccessHandler(populateSheetSelects)
+        .withFailureHandler(function(err) {
+          console.error('getSheetNames 실패:', err);
+          alert('시트 목록을 불러오지 못했습니다:\n' + err.message);
+        })
+        .getSheetNames();
+    });
+
+    // 2) 셀렉트 박스 채우기
+    function populateSheetSelects(sheets) {
+      const src = document.getElementById('sourceSheet');
+      const tmpl = document.getElementById('templateSheet');
+      let recentTemplate = '', latestDate = 0;
+
+      sheets.forEach(name => {
+        const o1 = new Option(name, name);
+        src.appendChild(o1);
+
+        const o2 = new Option(name, name);
+        tmpl.appendChild(o2);
+
+        const m = name.match(/^\(작업\)(\d{8})$/);
+        if (m) {
+          const d = parseInt(m[1],10);
+          if (d > latestDate) {
+            latestDate = d;
+            recentTemplate = name;
+          }
+        }
+      });
+
+      // 첫 2. 포함 시트 자동 선택
+      for (let i=0; i < src.options.length; i++) {
+        if (src.options[i].value.includes('1.')) {
+          src.selectedIndex = i;
+          break;
+        }
+      }
+      // 가장 최신 템플릿 자동 선택
+      if (recentTemplate) tmpl.value = recentTemplate;
+    }
+
+    // 3) 제출 버튼에 이벤트 연결
+    document.getElementById('confirmBtn').addEventListener('click', handleSubmit);
+
+    // 4) 폼 제출 처리
+    function handleSubmit() {
+      const templateSheet = document.getElementById('templateSheet').value;
+      const sourceSheet   = document.getElementById('sourceSheet').value;
+      const dateVal       = document.getElementById('workDate').value;
+
+      if (!templateSheet || !sourceSheet || !dateVal) {
+        alert('모든 항목을 선택해주세요.');
+        return;
+      }
+
+      const formattedDate = dateVal.replace(/-/g, '');
+      google.script.run
+        .withSuccessHandler(() => google.script.host.close())
+        .withFailureHandler(function(err) {
+          console.error('createSheet 실패:', err);
+          alert('시트 생성 중 오류가 발생했습니다:\n' + err.message);
+        })
+        .createSheetFromTemplateAndSource(templateSheet, sourceSheet, formattedDate);
+    }
+  </script>
+</body>
+</html>
