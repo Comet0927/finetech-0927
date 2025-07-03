@@ -175,64 +175,86 @@ function formatAsLineList(set) {
     .join('\n');
 }
 
-function moveExpectedToToday() {
-  const ui    = SpreadsheetApp.getUi();
-  const sheet = SpreadsheetApp.getActiveSheet();
+function showMoveExpectedForm() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const all = ss.getSheets().map(s => s.getName());
 
-  // 1) 예/아니오 확인
-  const resp = ui.alert(
-    '작업 이동',
-    '예상작업을 당일작업으로 옮기시겠습니까?',
-    ui.ButtonSet.YES_NO
-  );
-  if (resp !== ui.Button.YES) return;
+  // "1." 으로 시작하는 시트를 우선순위로
+  const priority = all.filter(n => n.startsWith('1.'));
+  const others   = all.filter(n => !n.startsWith('1.'));
+  const ordered  = [...priority, ...others];
 
-  // 2) 헤더(A2:N2)와 데이터(A3:N18) 가져오기
-  const headers = sheet.getRange('A2:N2').getValues()[0];
-  const data    = sheet.getRange('A3:N18').getValues();
+  const tpl = HtmlService.createTemplateFromFile('MoveForm');
+  tpl.sheetNames   = ordered;
+  tpl.defaultSheet = ordered[0];
 
-  // 3) 검증 이슈 수집
+  const html = tpl.evaluate()
+    .setWidth(350)
+    .setHeight(150);
+  ui.showModalDialog(html, '당일 확정 작업 시트 선택');
+}
+
+
+/**
+ * ② 실제 이동 로직 (기존 moveExpectedToToday 내용, prompt/확인 빼고 sheetName 파라미터로)
+ */
+function moveExpectedToTodayByName(sheetName) {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    ui.alert('오류', `"${sheetName}" 시트를 찾을 수 없습니다.`, ui.ButtonSet.OK);
+    return;
+  }
+
+  // 확인 대화상자
+  if (ui.alert('작업 이동',
+               `"${sheetName}" 시트의 예상작업을 당일작업으로 옮기시겠습니까?`,
+               ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+
+  // 1) 헤더·데이터 가져오기
+  const headers = sheet.getRange('A2:O2').getValues()[0];
+  const data    = sheet.getRange('A3:O18').getValues();
+
+  // 2) 검증
   const issues = [];
   data.forEach((row, idx) => {
-    const taskNum = idx + 1;
-    const aVal    = row[0];
-    const bVal    = row[1];
-
-    // A만 있고 B가 비어 있으면 → B~N(C 제외) 모두 누락
+    const [aVal, bVal] = row;
     if (aVal && !bVal) {
-      issues.push({
-        taskCount: taskNum,
-        missingHeaders: headers.slice(1).filter((_, i) => i !== 1)  // slice(1): B~N → filter로 C(인덱스2) 제외
+      issues.push({ taskCount: idx+1,
+        missingHeaders: headers.slice(1).filter((_, i) => i!==1)
       });
-    }
-    // B가 채워져 있으면 → A~N(C 제외) 전체 검증
-    else if (bVal) {
+    } else if (bVal) {
       const missing = headers
-        .map((h, i) => (i !== 2 && !row[i]) ? h : null)
-        .filter(h => h);
-      if (missing.length) {
-        issues.push({ taskCount: taskNum, missingHeaders: missing });
-      }
+        .map((h,i) => (i!==2 && !row[i])? h : null)
+        .filter(h=>h);
+      if (missing.length) issues.push({ taskCount: idx+1, missingHeaders: missing });
     }
-    // A,B 둘 다 없으면 스킵
   });
-
-  // 4) 이슈 있으면 메시지 띄우고 종료
   if (issues.length) {
-    const msg = issues.map((itm, i) =>
-      `(${i+1})\n` +
-      `확인 필요 : ${itm.taskCount}번 작업\n` +
-      `수정 및 기입 필요 : ${itm.missingHeaders.join(', ')}`
-    ).join('\n\n');
+    const msg = issues.map((it,i) =>
+      `(${i+1}) ${it.taskCount}번 작업: ${it.missingHeaders.join(', ')}`
+    ).join('\n');
     ui.alert('취합 불가', msg, ui.ButtonSet.OK);
     return;
   }
 
-  // 5) 복사
-  sheet.getRange('A3:N18').copyTo(sheet.getRange('A22:N37'));
+  // 3) 복사→지우기
+  sheet.getRange('A3:O18').copyTo(sheet.getRange('A22:O37'));
+  sheet.getRange('A3:B18').clearContent();
+  sheet.getRange('D3:O18').clearContent();
 
-  // 6) 원본 지우기 (C열은 유지)
-  // A,B 열 지우기
-sheet.getRange('A3:B18').clearContent();
-sheet.getRange('D3:N18').clearContent();
+  // 4) 새 시트 복사 & 이름 설정
+  const dateVal  = sheet.getRange('A22').getDisplayValue().replace(/-/g,'');
+  const newName  = `(안심)${dateVal}`;
+  const newSheet = sheet.copyTo(ss).setName(newName);
+
+  // 5) 새 시트 1~19행 삭제 & 맨 뒤로 이동
+  newSheet.deleteRows(1, 19);
+  ss.setActiveSheet(newSheet);
+  ss.moveActiveSheet(ss.getNumSheets());
+
+  // 6) 완료 알림
+  ui.alert('✅ 이동 완료', `"${newName}" 시트가 생성되었습니다.`, ui.ButtonSet.OK);
 }

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+  </head>
+  <body>
+    <form id="exportForm">
+      <!-- 1) 안심 취합 리스트 -->
+      <label for="sheet1">안심 취합 리스트:</label>
+      <select id="sheet1" name="sheetName1">
+        <? for (let i = 0; i < sheetNames1.length; i++) {
+             const name = sheetNames1[i]; ?>
+          <option value="<?!= name ?>"
+            <?!= name === default1 ? 'selected' : '' ?>>
+            <?!= name ?>
+          </option>
+        <? } ?>
+      </select>
+      <br><br>
+
+      <!-- 2) 작업 취합 리스트 -->
+      <label for="sheet2">작업 취합 리스트:</label>
+      <select id="sheet2" name="sheetName2">
+        <? for (let i = 0; i < sheetNames2.length; i++) {
+             const name = sheetNames2[i]; ?>
+          <option value="<?!= name ?>"
+            <?!= name === default2 ? 'selected' : '' ?>>
+            <?!= name ?>
+          </option>
+        <? } ?>
+      </select>
+
+      <!-- 숨김 필드: 대상 스프레드시트 ID -->
+      <input type="hidden" name="destId" value="<?!= destId ?>">
+
+      <br><br>
+      <button type="button" onclick="submitExport()">내보내기</button>
+      <button type="button" onclick="google.script.host.close()">취소</button>
+    </form>
+
+    <script>
+      function submitExport() {
+        const form = document.getElementById('exportForm');
+        const data = {
+          sheetName1: form.sheetName1.value,
+          sheetName2: form.sheetName2.value,
+          destId:     form.destId.value
+        };
+        google.script.run
+          .withSuccessHandler(() => {
+            alert('✅ 내보내기 완료!');
+            google.script.host.close();
+          })
+          .withFailureHandler(err => {
+            alert('🚨 오류 발생: ' + err.message);
+          })
+          .exportTwoSheetsToSpreadsheet(
+            data.sheetName1,
+            data.sheetName2,
+            data.destId
+          );
+      }
+    </script>
+  </body>
+</html>

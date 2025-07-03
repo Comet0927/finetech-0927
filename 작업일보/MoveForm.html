@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+  <head><base target="_top"></head>
+  <body>
+    <form id="moveForm">
+      <label for="sheet">시트 선택:</label>
+      <select id="sheet" name="sheetName">
+        <? for (let i = 0; i < sheetNames.length; i++) {
+             const nm = sheetNames[i]; ?>
+          <option value="<?!= nm ?>"
+            <?!= nm === defaultSheet ? 'selected' : '' ?>>
+            <?!= nm ?>
+          </option>
+        <? } ?>
+      </select>
+      <br><br>
+      <button type="button" onclick="submitMove()">확정</button>
+      <button type="button" onclick="google.script.host.close()">취소</button>
+    </form>
+    <script>
+      function submitMove() {
+        const f = document.getElementById('moveForm');
+        google.script.run
+          .withSuccessHandler(() => {
+            alert('✅ 확정 완료!');
+            google.script.host.close();
+          })
+          .withFailureHandler(err => {
+            alert('🚨 오류: ' + err.message);
+          })
+          .moveExpectedToTodayByName(f.sheetName.value);
+      }
+    </script>
+  </body>
+</html>
