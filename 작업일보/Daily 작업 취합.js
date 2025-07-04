@@ -208,11 +208,6 @@ function moveExpectedToTodayByName(sheetName) {
     return;
   }
 
-  // 확인 대화상자
-  if (ui.alert('작업 이동',
-               `"${sheetName}" 시트의 예상작업을 당일작업으로 옮기시겠습니까?`,
-               ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
-
   // 1) 헤더·데이터 가져오기
   const headers = sheet.getRange('A2:O2').getValues()[0];
   const data    = sheet.getRange('A3:O18').getValues();
@@ -254,7 +249,4 @@ function moveExpectedToTodayByName(sheetName) {
   newSheet.deleteRows(1, 19);
   ss.setActiveSheet(newSheet);
   ss.moveActiveSheet(ss.getNumSheets());
-
-  // 6) 완료 알림
-  ui.alert('✅ 이동 완료', `"${newName}" 시트가 생성되었습니다.`, ui.ButtonSet.OK);
 }

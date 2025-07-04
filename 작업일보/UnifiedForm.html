@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body { font-family: sans-serif; padding: 10px; position: relative; }
+    fieldset { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; }
+    legend { font-weight: bold; }
+    label, select, input, button { margin: 6px 0; display: block; width: 100%; }
+    /* 로딩 오버레이 */
+    #loadingOverlay {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.8);
+      z-index: 1000;
+      text-align: center;
+      padding-top: 40%;
+    }
+    #loadingBar {
+      width: 80%;
+      height: 20px;
+    }
+    #loadingText {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <!-- 1. 작업 협의 시트 생성 -->
+  <fieldset>
+    <legend>1. 작업 협의 시트 생성</legend>
+    <label for="sourceSheet1">① 데이터 취합 시트:</label>
+    <select id="sourceSheet1"></select>
+
+    <label for="templateSheet1">② 복사할 시트 (양식 템플릿):</label>
+    <select id="templateSheet1"></select>
+
+    <label for="date1">③ 날짜 선택:</label>
+    <input type="date" id="date1">
+
+    <button id="createBtn" type="button">생성</button>
+  </fieldset>
+
+  <!-- 2. 당일 작업 확정 -->
+  <fieldset>
+    <legend>2. 당일 작업 확정</legend>
+    <label for="moveSheet">시트 선택:</label>
+    <select id="moveSheet"></select>
+
+    <button id="moveBtn" type="button">확정</button>
+  </fieldset>
+
+  <!-- 3. 시트 내보내기 -->
+  <fieldset>
+    <legend>3. 시트 내보내기</legend>
+    <label for="sheet1">안심 취합 리스트:</label>
+    <select id="sheet1" name="sheetName1"></select>
+
+    <label for="sheet2">작업 취합 리스트:</label>
+    <select id="sheet2" name="sheetName2"></select>
+
+    <input type="hidden" id="destId" name="destId" value="<?!= destId ?>">
+    <button id="exportBtn" type="button">내보내기</button>
+  </fieldset>
+
+  <!-- 로딩 오버레이 -->
+  <div id="loadingOverlay">
+    <progress id="loadingBar" max="100" value="0"></progress>
+    <div id="loadingText">진행 중...</div>
+  </div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // 시트 목록 초기화
+    google.script.run.withSuccessHandler(pop1).getSheetNames();
+    google.script.run.withSuccessHandler(pop2).getSheetNames();
+    google.script.run.withSuccessHandler(pop3).getSheetNames();
+
+    // 오늘 날짜 자동 세팅
+    const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+      .toISOString().slice(0,10);
+    document.getElementById('date1').value = today;
+  });
+
+  // 로딩 애니메이션
+  let loadInterval;
+  function showLoading() {
+    const overlay = document.getElementById('loadingOverlay');
+    const bar = document.getElementById('loadingBar');
+    bar.value = 0;
+    overlay.style.display = 'block';
+    loadInterval = setInterval(function() {
+      if (bar.value < 90) bar.value = Math.min(bar.max, bar.value + Math.random() * 10);
+    }, 500);
+  }
+  function hideLoading(message) {
+    clearInterval(loadInterval);
+    const bar = document.getElementById('loadingBar');
+    bar.value = bar.max;
+    setTimeout(function() {
+      document.getElementById('loadingOverlay').style.display = 'none';
+      alert(message);
+    }, 300);
+  }
+
+  // 1. 생성 버튼
+  document.getElementById('createBtn').addEventListener('click', function() {
+    const src = document.getElementById('sourceSheet1').value;
+    const tpl = document.getElementById('templateSheet1').value;
+    const date = document.getElementById('date1').value.replace(/-/g, '');
+    showLoading();
+    google.script.run
+      .withSuccessHandler(() => hideLoading('✅ 생성 완료!'))
+      .withFailureHandler(function(err) {
+        clearInterval(loadInterval);
+        document.getElementById('loadingOverlay').style.display = 'none';
+        alert('🚨 오류 발생: ' + err.message);
+      })
+      .createSheetFromTemplateAndSource(tpl, src, date);
+  });
+
+  // 2. 당일 작업 확정
+  document.getElementById('moveBtn').addEventListener('click', function() {
+    if (!confirm('정말 확정하시겠습니까?')) return;
+    const name = document.getElementById('moveSheet').value;
+    showLoading();
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoading('✅ 확정 완료!');
+        google.script.run.withSuccessHandler(pop3).getSheetNames();
+      })
+      .withFailureHandler(function(err) {
+        clearInterval(loadInterval);
+        document.getElementById('loadingOverlay').style.display = 'none';
+        alert('🚨 오류 발생: ' + err.message);
+      })
+      .moveExpectedToTodayByName(name);
+  });
+
+  // 3. 시트 내보내기
+  document.getElementById('exportBtn').addEventListener('click', function() {
+    const sheetName1 = document.getElementById('sheet1').value;
+    const sheetName2 = document.getElementById('sheet2').value;
+    const destId = document.getElementById('destId').value;
+    showLoading();
+    google.script.run
+      .withSuccessHandler(function() {
+        hideLoading('✅ 내보내기 완료!');
+      })
+      .withFailureHandler(function(err) {
+        clearInterval(loadInterval);
+        document.getElementById('loadingOverlay').style.display = 'none';
+        alert('🚨 오류 발생: ' + err.message);
+      })
+      .exportTwoSheetsToSpreadsheet(sheetName1, sheetName2, destId);
+  });
+
+  // 옵션 채우기 함수들
+  function pop1(names) {
+    const src = document.getElementById('sourceSheet1');
+    const tpl = document.getElementById('templateSheet1');
+    src.innerHTML = '';
+    tpl.innerHTML = '';
+    names.forEach(n => {
+      src.add(new Option(n, n));
+      tpl.add(new Option(n, n));
+    });
+    const defaultSrc = names.find(n => n.startsWith('1.'));
+    if (defaultSrc) src.value = defaultSrc;
+    const defaultTpl = names.find(n => n.startsWith('관리자'));
+    if (defaultTpl) tpl.value = defaultTpl;
+  }
+  function pop2(names) {
+    const mv = document.getElementById('moveSheet');
+    mv.innerHTML = '';
+    names.forEach(n => mv.add(new Option(n, n)));
+    const defaultMove = names.find(n => n.startsWith('1.'));
+    if (defaultMove) mv.value = defaultMove;
+  }
+  function pop3(names) {
+    const sel1 = document.getElementById('sheet1');
+    const sel2 = document.getElementById('sheet2');
+    sel1.innerHTML = '';
+    sel2.innerHTML = '';
+    const list1 = names.filter(n => n.includes('(안심)'));
+    const list2 = names.filter(n => n.includes('(작업)'));
+    list1.forEach(n => sel1.add(new Option(n, n)));
+    list2.forEach(n => sel2.add(new Option(n, n)));
+    if (list1.length) sel1.value = list1[0];
+    if (list2.length) sel2.value = list2[0];
+  }
+  </script>
+</body>
+</html>

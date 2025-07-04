@@ -15,14 +15,31 @@ function onInstall(e) {
  */
 function onOpen(e) {
   const ui = SpreadsheetApp.getUi();
-  
   ui.createMenu('1. 작업 취합')
-    .addItem('1. 작업 협의 시트 생성', 'showFormDialog')
-    .addItem('2. 당일 작업 확정',       'showMoveExpectedForm')
-    .addItem('3. 시트 내보내기',       'showExportForm')   // ← 이 줄 추가
+    .addItem('작업 통합폼 열기', 'showUnifiedForm')
     .addToUi();
 }
 
+function showUnifiedForm() {
+  const ui = SpreadsheetApp.getUi();
+  // 템플릿 로드
+  const tpl = HtmlService.createTemplateFromFile('UnifiedForm');
+  // Apps Script 함수 getSheetNames()로 시트 목록 가져오기
+  const allNames = getSheetNames();
+  // (안심)·(작업) 시트만 분리
+  tpl.sheetNames1 = allNames.filter(n => n.includes('(안심)'));
+  tpl.default1    = tpl.sheetNames1[0] || '';
+  tpl.sheetNames2 = allNames.filter(n => n.includes('(작업)'));
+  tpl.default2    = tpl.sheetNames2[0] || '';
+  tpl.destId      = DEST_SPREADSHEET_ID;
+  
+  // HTML 평가 및 다이얼로그 표시
+  const htmlOutput = tpl
+    .evaluate()
+    .setWidth(600)
+    .setHeight(600);
+  ui.showModalDialog(htmlOutput, '작업 통합폼');  
+}
 
 
 
